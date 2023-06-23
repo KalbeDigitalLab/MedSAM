@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 from typing import Optional, Tuple, Type
 
-from .common import LayerNorm2d, MLPBlock
+from .common import LayerNorm2d, MLPBlock, AdapterMLPBlock
 
 
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
@@ -179,6 +179,67 @@ class Block(nn.Module):
         x = shortcut + x
         x = x + self.mlp(self.norm2(x))
 
+        return x
+
+
+class AdapterBlock(Block):
+    def __init__(
+        self,
+        dim: int,
+        num_heads: int,
+        mlp_ratio: float = 4.0,
+        qkv_bias: bool = True,
+        norm_layer: Type[nn.Module] = nn.LayerNorm,
+        act_layer: Type[nn.Module] = nn.GELU,
+        use_rel_pos: bool = False,
+        rel_pos_zero_init: bool = True,
+        window_size: int = 0,
+        input_size: Optional[Tuple[int, int]] = None,
+        scale: float = 0.1,
+    ) -> None:
+        """
+        Args:
+            dim (int): Number of input channels.
+            num_heads (int): Number of attention heads in each ViT block.
+            mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
+            qkv_bias (bool): If True, add a learnable bias to query, key, value.
+            norm_layer (nn.Module): Normalization layer.
+            act_layer (nn.Module): Activation layer.
+            use_rel_pos (bool): If True, add relative positional embeddings to the attention map.
+            rel_pos_zero_init (bool): If True, zero initialize relative positional parameters.
+            window_size (int): Window size for window attention blocks. If it equals 0, then
+                use global attention.
+            input_size (tuple(int, int) or None): Input resolution for calculating the relative
+                positional parameter size.
+            scale (int): mlp residual adapter scaling factor
+        """
+
+        super().__init__(dim, num_heads, mlp_ratio, qkv_bias, norm_layer,
+                         act_layer, use_rel_pos, rel_pos_zero_init, window_size,
+                         input_size)
+
+        self.mlp_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio))
+        self.space_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio))
+        self.depth_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio))
+        self.scale = scale
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        shortcut = x
+        x = self.norm1(x)
+        # Window partition
+        if self.window_size > 0:
+            H, W = x.shape[1], x.shape[2]
+            x, pad_hw = window_partition(x, self.window_size)
+
+        x = self.attn(x)
+        x = self.space_adapter(x)
+
+        # Reverse window partition
+        if self.window_size > 0:
+            x = window_unpartition(x, self.window_size, pad_hw, (H, W))
+
+        x = shortcut + x
+        x = self.mlp(self.norm2(x)) + self.scale * self.mlp_adapter(x)
         return x
 
 

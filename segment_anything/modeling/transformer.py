@@ -10,7 +10,7 @@ from torch import Tensor, nn
 import math
 from typing import Tuple, Type
 
-from .common import MLPBlock
+from .common import MLPBlock, AdapterMLPBlock, AdditionAdapterMLPBlock
 
 
 class TwoWayTransformer(nn.Module):
@@ -176,6 +176,82 @@ class TwoWayAttentionBlock(nn.Module):
         q = queries + query_pe
         k = keys + key_pe
         attn_out = self.cross_attn_image_to_token(q=k, k=q, v=queries)
+        keys = keys + attn_out
+        keys = self.norm4(keys)
+
+        return queries, keys
+
+
+class AdapterTwoWayAttentionBlock(TwoWayAttentionBlock):
+    def __init__(
+        self,
+        embedding_dim: int,
+        num_heads: int,
+        mlp_dim: int = 2048,
+        activation: Type[nn.Module] = nn.ReLU,
+        attention_downsample_rate: int = 2,
+        skip_first_layer_pe: bool = False,
+        mlp_ratio: float = 4.0,
+        scale: float = 0.1,
+
+    ) -> None:
+        """
+        A transformer block with four layers: (1) self-attention of sparse
+        inputs, (2) cross attention of sparse inputs to dense inputs, (3) mlp
+        block on sparse inputs, and (4) cross attention of dense inputs to sparse
+        inputs.
+
+        Arguments:
+          embedding_dim (int): the channel dimension of the embeddings
+          num_heads (int): the number of heads in the attention layers
+          mlp_dim (int): the hidden dimension of the mlp block
+          activation (nn.Module): the activation of the mlp block
+          skip_first_layer_pe (bool): skip the PE on the first layer
+          mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
+          scale (int): mlp residual adapter scaling factor
+
+        """
+        super().__init__(embedding_dim, num_heads, mlp_dim, activation, attention_downsample_rate, skip_first_layer_pe)
+
+        self.mlp_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
+        self.down_sample_queries = nn.Linear(embedding_dim, int(embedding_dim * mlp_ratio))
+        self.token_to_image_adapter = AdditionAdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
+        self.image_to_token_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
+        self.scale = scale
+
+    def forward(
+        self, queries: Tensor, keys: Tensor, query_pe: Tensor, key_pe: Tensor
+    ) -> Tuple[Tensor, Tensor]:
+        # Self attention block
+        if self.skip_first_layer_pe:
+            queries = self.self_attn(q=queries, k=queries, v=queries)
+        else:
+            q = queries + query_pe
+            attn_out = self.self_attn(q=q, k=q, v=queries)
+            queries = queries + attn_out
+        queries = self.norm1(queries)
+
+        # Cross attention block, tokens attending to image embedding
+        q = queries + query_pe
+        k = keys + key_pe
+        attn_out = self.cross_attn_token_to_image(q=q, k=k, v=keys)
+
+        downsampled_queries = self.down_sample_queries(queries)
+        queries = queries + attn_out
+
+        queries = self.token_to_image_adapter(queries, downsampled_queries)
+        queries = queries + keys
+
+        # MLP block
+        queries = self.mlp(self.norm2(queries)) + self.scale * self.mlp_adapter(queries)
+        queries = self.norm3(queries)
+
+        # Cross attention block, image embedding attending to tokens
+        q = queries + query_pe
+        k = keys + key_pe
+        attn_out = self.cross_attn_image_to_token(q=k, k=q, v=queries)
+        attn_out = attn_out + keys
+        attn_out = self.image_to_token_adapter(attn_out)
         keys = keys + attn_out
         keys = self.norm4(keys)
 
