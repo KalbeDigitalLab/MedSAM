@@ -33,6 +33,9 @@ class AdapterMLPBlock(MLPBlock):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.lin2(self.act(self.lin1(x))) + x
 
+class AdditionAdapterMLPBlock(AdapterMLPBlock):
+    def forward(self, x_1: torch.Tensor, x_2: torch.Tensor) -> torch.Tensor:
+        return self.lin2(self.act(self.lin1(x_1) + x_2)) + x_1
 
 # From https://github.com/facebookresearch/detectron2/blob/main/detectron2/layers/batch_norm.py # noqa
 # Itself from https://github.com/facebookresearch/ConvNeXt/blob/d1fa8f6fef0a165b27399986cc2bdacc92777e40/models/convnext.py#L119  # noqa
