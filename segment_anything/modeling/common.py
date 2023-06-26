@@ -10,6 +10,18 @@ import torch.nn as nn
 from typing import Type
 
 
+class LoRALayer(nn.Module):
+    def __init__(self, w: nn.Module, w_a: nn.Module, w_b: nn.Module):
+        super().__init__()
+        self.w = w
+        self.w_a = w_a
+        self.w_b = w_b
+
+    def forward(self, x):
+        x = self.w(x) + self.w_b(self.w_a(x))
+        return x
+
+
 class LoRALayer_qkv_timm(nn.Module):
     """In timm it is implemented as
     self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)

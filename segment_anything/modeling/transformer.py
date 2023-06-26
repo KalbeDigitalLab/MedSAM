@@ -8,9 +8,9 @@ import torch
 from torch import Tensor, nn
 
 import math
-from typing import Tuple, Type
+from typing import List, Optional, Tuple, Type
 
-from .common import MLPBlock, AdapterMLPBlock, AdditionAdapterMLPBlock
+from .common import MLPBlock, AdapterMLPBlock, AdditionAdapterMLPBlock, LoRALayer
 
 
 class TwoWayTransformer(nn.Module):
@@ -257,6 +257,90 @@ class AdapterTwoWayAttentionBlock(TwoWayAttentionBlock):
 
         return queries, keys
 
+
+class LoRATwoWayTransformer(nn.Module):
+    def __init__(
+        self,
+        decoder_mask: TwoWayTransformer,
+        r: int = 4,
+        lora_layer: Optional[List] = None,
+    ) -> None:
+        super(LoRATwoWayTransformer, self).__init__()
+
+        assert r > 0
+        base_dim = decoder_mask.layers[0].self_attn.q_proj.in_features
+        dim = base_dim
+        if lora_layer:
+            self.lora_layer = lora_layer
+        else:
+            self.lora_layer = list(range(len(decoder_mask.blocks)))
+
+        # create for storage, then we can init them or load weights
+        self.w_As = []  # These are linear layers
+        self.w_Bs = []
+
+        # lets freeze first
+        for param in decoder_mask.parameters():
+            param.requires_grad = False
+
+        # Here, we do the surgery
+        for t_layer_i, blk in enumerate(decoder_mask.layers):
+            # If we only want few lora layer instead of all
+            if t_layer_i not in self.lora_layer:
+                continue
+            # self attn
+            w_q_linear = blk.self_attn.q_proj
+            w_v_linear = blk.self_attn.v_proj
+            w_a_linear_q = nn.Linear(dim, r, bias=False)
+            w_b_linear_q = nn.Linear(r, dim, bias=False)
+            w_a_linear_v = nn.Linear(dim, r, bias=False)
+            w_b_linear_v = nn.Linear(r, dim, bias=False)
+            self.w_As.append(w_a_linear_q)
+            self.w_Bs.append(w_b_linear_q)
+            self.w_As.append(w_a_linear_v)
+            self.w_Bs.append(w_b_linear_v)
+            blk.self_attn.q_proj = LoRALayer(w_q_linear, w_a_linear_q, w_b_linear_q)
+            blk.self_attn.v_proj = LoRALayer(w_v_linear, w_a_linear_v, w_b_linear_v)
+
+            # token to image
+            w_q_linear = blk.cross_attn_token_to_image.q_proj
+            w_v_linear = blk.cross_attn_token_to_image.v_proj
+            w_a_linear_q = nn.Linear(dim, r, bias=False)
+            w_b_linear_q = nn.Linear(r, dim, bias=False)
+            w_a_linear_v = nn.Linear(dim, r, bias=False)
+            w_b_linear_v = nn.Linear(r, dim, bias=False)
+            self.w_As.append(w_a_linear_q)
+            self.w_Bs.append(w_b_linear_q)
+            self.w_As.append(w_a_linear_v)
+            self.w_Bs.append(w_b_linear_v)
+            blk.cross_attn_token_to_image.q_proj = LoRALayer(w_q_linear, w_a_linear_q, w_b_linear_q)
+            blk.cross_attn_token_to_image.v_proj = LoRALayer(w_v_linear, w_a_linear_v, w_b_linear_v)
+
+            # image to token
+            w_q_linear = blk.cross_attn_image_to_token.q_proj
+            w_v_linear = blk.cross_attn_image_to_token.v_proj
+            w_a_linear_q = nn.Linear(dim, r, bias=False)
+            w_b_linear_q = nn.Linear(r, dim, bias=False)
+            w_a_linear_v = nn.Linear(dim, r, bias=False)
+            w_b_linear_v = nn.Linear(r, dim, bias=False)
+            self.w_As.append(w_a_linear_q)
+            self.w_Bs.append(w_b_linear_q)
+            self.w_As.append(w_a_linear_v)
+            self.w_Bs.append(w_b_linear_v)
+            blk.cross_attn_image_to_token.q_proj = LoRALayer(w_q_linear, w_a_linear_q, w_b_linear_q)
+            blk.cross_attn_image_to_token.v_proj = LoRALayer(w_v_linear, w_a_linear_v, w_b_linear_v)
+
+        self.reset_parameters()
+        self.decoder_mask = decoder_mask
+
+    def reset_parameters(self) -> None:
+        for w_A in self.w_As:
+            nn.init.kaiming_uniform_(w_A.weight, a=math.sqrt(5))
+        for w_B in self.w_Bs:
+            nn.init.zeros_(w_B.weight)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.decoder_mask(x)
 
 class Attention(nn.Module):
     """
