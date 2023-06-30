@@ -4,13 +4,15 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 
+import math
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from typing import Optional, Tuple, Type
+from typing import List, Optional, Tuple, Type
 
-from .common import LayerNorm2d, MLPBlock, AdapterMLPBlock
+from .common import LayerNorm2d, MLPBlock, AdapterMLPBlock, LoRA_qkv_timm
 
 
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
@@ -114,6 +116,71 @@ class ImageEncoderViT(nn.Module):
         x = self.neck(x.permute(0, 3, 1, 2))
 
         return x
+
+
+class LoRAImageEncoderViT(nn.Module):
+    def __init__(
+        self,
+        encoder_vit: ImageEncoderViT,
+        r: int = 4,
+        lora_layer: Optional[List] = None,
+    ) -> None:
+        """
+        Args:
+            encoder_vit (nn.Module): Vision Transformer model
+            r (int): rank of LoRA
+            lora_layer (list): which layer we apply LoRA.
+        """
+
+        super(LoRAImageEncoderViT, self).__init__()
+
+        assert r > 0
+        if lora_layer:
+            self.lora_layer = lora_layer
+        else:
+            self.lora_layer = list(range(len(encoder_vit.blocks)))
+
+        # create for storage, then we can init them or load weights
+        self.w_As = []  # These are linear layers
+        self.w_Bs = []
+
+        # lets freeze first
+        for param in encoder_vit.parameters():
+            param.requires_grad = False
+
+        # Here, we do the surgery
+        for t_layer_i, blk in enumerate(encoder_vit.blocks):
+            # If we only want few lora layer instead of all
+            if t_layer_i not in self.lora_layer:
+                continue
+            w_qkv_linear = blk.attn.qkv
+            self.dim = w_qkv_linear.in_features
+            w_a_linear_q = nn.Linear(self.dim, r, bias=False)
+            w_b_linear_q = nn.Linear(r, self.dim, bias=False)
+            w_a_linear_v = nn.Linear(self.dim, r, bias=False)
+            w_b_linear_v = nn.Linear(r, self.dim, bias=False)
+            self.w_As.append(w_a_linear_q)
+            self.w_Bs.append(w_b_linear_q)
+            self.w_As.append(w_a_linear_v)
+            self.w_Bs.append(w_b_linear_v)
+            blk.attn.qkv = LoRA_qkv_timm(
+                w_qkv_linear,
+                w_a_linear_q,
+                w_b_linear_q,
+                w_a_linear_v,
+                w_b_linear_v,
+            )
+        self.reset_parameters()
+        self.encoder_vit = encoder_vit
+
+    def reset_parameters(self) -> None:
+        for w_A in self.w_As:
+            nn.init.kaiming_uniform_(w_A.weight, a=math.sqrt(5))
+        for w_B in self.w_Bs:
+            nn.init.zeros_(w_B.weight)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.encoder_vit(x)
 
 
 class Block(nn.Module):
