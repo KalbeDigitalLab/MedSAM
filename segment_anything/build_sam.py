@@ -5,11 +5,14 @@
 # LICENSE file in the root directory of this source tree.
 from functools import partial
 from pathlib import Path
+from typing import List, Optional
 import urllib.request
 import torch
 
 from .modeling import (
     ImageEncoderViT,
+    LoRAImageEncoderViT,
+    AdapterImageEncoderViT,
     MaskDecoder,
     PromptEncoder,
     Sam,
@@ -49,6 +52,19 @@ def build_sam_vit_b(checkpoint=None):
         checkpoint=checkpoint,
     )
 
+def apply_encoder_modification(
+    sam_model: Sam,
+    enable_lora_attn: bool = False,
+    enable_adapter_mlp: bool = False,
+    adapter_scale: float = 0.1,
+    lora_rank: int = 4,
+    lora_layer: Optional[List] = None,
+    ) -> Sam:
+    if enable_lora_attn:
+        sam_model.image_encoder = LoRAImageEncoderViT(sam_model.image_encoder, lora_rank, lora_layer)
+    if enable_adapter_mlp:
+        sam_model.image_encoder = AdapterImageEncoderViT(sam_model.image_encoder, adapter_scale)
+    return sam_model
 
 sam_model_registry = {
     "default": build_sam_vit_h,
@@ -138,7 +154,7 @@ def _build_sam(
             )
             print(checkpoint.name, " is downloaded!")
 
-        
+
     if checkpoint is not None:
         with open(checkpoint, "rb") as f:
             state_dict = torch.load(f)
