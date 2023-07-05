@@ -8,4 +8,4 @@ from .sam import Sam
 from .image_encoder import ImageEncoderViT, LoRAImageEncoderViT, AdapterImageEncoderViT
 from .mask_decoder import MaskDecoder
 from .prompt_encoder import PromptEncoder
-from .transformer import TwoWayTransformer, LoRATwoWayTransformer
+from .transformer import TwoWayTransformer, LoRATwoWayTransformer, AdapterTwoWayTransformer

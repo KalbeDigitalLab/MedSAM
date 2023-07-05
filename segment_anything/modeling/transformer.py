@@ -339,6 +339,32 @@ class LoRATwoWayTransformer(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         return self.decoder_mask(x)
 
+
+class AdapterTwoWayTransformer(nn.Module):
+    def __init__(
+        self,
+        decoder_mask: TwoWayTransformer,
+        scale: float = 0.1,
+        mlp_ratio: float = 4.0,
+
+        lora_layer: Optional[List] = None,
+    ) -> None:
+        super(AdapterTwoWayTransformer, self).__init__()
+
+        # lets freeze first
+        for param in decoder_mask.parameters():
+            param.requires_grad = False
+
+        # Here, we do the surgery
+        for _, blk in enumerate(decoder_mask.layers):
+            blk = AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale)
+
+        self.decoder_mask = decoder_mask
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.decoder_mask(x)
+
+
 class Attention(nn.Module):
     """
     An attention layer that allows for downscaling the size of the embedding
