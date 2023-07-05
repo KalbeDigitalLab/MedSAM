@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 from typing import List, Optional, Tuple, Type
 
-from .common import LayerNorm2d, MLPBlock, AdapterMLPBlock, LoRA_qkv_timm
+from .common import LayerNorm2d, MLPBlock, AdapterMLPBlock, LoRALayer_qkv_timm
 
 
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
@@ -163,7 +163,7 @@ class LoRAImageEncoderViT(nn.Module):
             self.w_Bs.append(w_b_linear_q)
             self.w_As.append(w_a_linear_v)
             self.w_Bs.append(w_b_linear_v)
-            blk.attn.qkv = LoRA_qkv_timm(
+            blk.attn.qkv = LoRALayer_qkv_timm(
                 w_qkv_linear,
                 w_a_linear_q,
                 w_b_linear_q,
@@ -188,11 +188,13 @@ class AdapterImageEncoderViT(nn.Module):
         self,
         encoder_vit: ImageEncoderViT,
         scale: float = 0.1,
+        mlp_ratio: float = 4.0,
     ) -> None:
         """
         Args:
             encoder_vit (nn.Module): Vision Transformer model
             scale (int): mlp residual adapter scaling factor
+            mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
         """
 
         super(AdapterImageEncoderViT, self).__init__()
@@ -201,9 +203,17 @@ class AdapterImageEncoderViT(nn.Module):
         for param in encoder_vit.parameters():
             param.requires_grad = False
 
+        adapter_blocks = nn.ModuleList()
+
         # Here, we do the surgery
-        for _, blk in enumerate(encoder_vit.blocks):
-            blk = AdapterBlock(blk, scale)
+        if isinstance(encoder_vit, LoRAImageEncoderViT):
+            for _, blk in enumerate(encoder_vit.encoder_vit.blocks):
+                adapter_blocks.append(AdapterBlock(blk, scale, mlp_ratio))
+            encoder_vit.encoder_vit.blocks = adapter_blocks
+        elif isinstance(encoder_vit, ImageEncoderViT):
+            for _, blk in enumerate(encoder_vit.blocks):
+                adapter_blocks.append(AdapterBlock(blk, scale, mlp_ratio))
+            encoder_vit.blocks = adapter_blocks
 
         self.encoder_vit = encoder_vit
 
@@ -282,21 +292,22 @@ class AdapterBlock(nn.Module):
         self,
         block: Block,
         scale: float = 0.1,
+        mlp_ratio: float = 4.0,
     ) -> None:
         """
         Args:
             block (Block): Original block module.
             scale (int): mlp residual adapter scaling factor
+            mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
         """
 
-        super(AdapterBlock).__init__()
+        super().__init__()
 
         # lets freeze first
         for parameter in block.parameters():
             parameter.requires_grad = False
 
-        dim = block.dim
-        mlp_ratio = block.mlp_ratio
+        dim = block.mlp.lin1.in_features
         self.mlp_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio))
         self.space_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio))
         self.scale = scale
