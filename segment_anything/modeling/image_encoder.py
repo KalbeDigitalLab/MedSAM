@@ -12,7 +12,7 @@ import torch.nn.functional as F
 
 from typing import List, Optional, Tuple, Type
 
-from .common import LayerNorm2d, MLPBlock, AdapterMLPBlock, LoRA_qkv_timm
+from .common import LayerNorm2d, MLPBlock, AdapterMLPBlock, LoRALayer_qkv_timm
 
 
 # This class and its supporting functions below lightly adapted from the ViTDet backbone available at: https://github.com/facebookresearch/detectron2/blob/main/detectron2/modeling/backbone/vit.py # noqa
@@ -163,7 +163,7 @@ class LoRAImageEncoderViT(nn.Module):
             self.w_Bs.append(w_b_linear_q)
             self.w_As.append(w_a_linear_v)
             self.w_Bs.append(w_b_linear_v)
-            blk.attn.qkv = LoRA_qkv_timm(
+            blk.attn.qkv = LoRALayer_qkv_timm(
                 w_qkv_linear,
                 w_a_linear_q,
                 w_b_linear_q,
