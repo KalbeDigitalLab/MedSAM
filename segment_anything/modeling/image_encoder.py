@@ -203,13 +203,17 @@ class AdapterImageEncoderViT(nn.Module):
         for param in encoder_vit.parameters():
             param.requires_grad = False
 
+        adapter_blocks = nn.ModuleList()
+
         # Here, we do the surgery
-        if isinstance(encoder_vit, ImageEncoderViT):
-            for _, blk in enumerate(encoder_vit.blocks):
-                blk = AdapterBlock(blk, scale, mlp_ratio)
-        elif isinstance(encoder_vit, LoRAImageEncoderViT):
+        if isinstance(encoder_vit, LoRAImageEncoderViT):
             for _, blk in enumerate(encoder_vit.encoder_vit.blocks):
-                blk = AdapterBlock(blk, scale, mlp_ratio)
+                adapter_blocks.append(AdapterBlock(blk, scale, mlp_ratio))
+            encoder_vit.encoder_vit.blocks = adapter_blocks
+        elif isinstance(encoder_vit, ImageEncoderViT):
+            for _, blk in enumerate(encoder_vit.blocks):
+                adapter_blocks.append(AdapterBlock(blk, scale, mlp_ratio))
+            encoder_vit.blocks = adapter_blocks
 
         self.encoder_vit = encoder_vit
 

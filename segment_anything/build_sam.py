@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Optional
 import urllib.request
 import torch
+import copy
 
 from .modeling import (
     ImageEncoderViT,
@@ -64,11 +65,12 @@ def apply_encoder_modification(
     lora_rank: int = 4,
     lora_layer: Optional[List] = None,
     ) -> Sam:
+    new_sam = copy.deepcopy(sam_model)
     if enable_lora_attn:
-        sam_model.image_encoder = LoRAImageEncoderViT(sam_model.image_encoder, lora_rank, lora_layer)
+        new_sam.image_encoder = LoRAImageEncoderViT(new_sam.image_encoder, lora_rank, lora_layer)
     if enable_adapter_mlp:
-        sam_model.image_encoder = AdapterImageEncoderViT(sam_model.image_encoder, adapter_scale, adapter_mlp_ratio)
-    return sam_model
+        new_sam.image_encoder = AdapterImageEncoderViT(new_sam.image_encoder, adapter_scale, adapter_mlp_ratio)
+    return new_sam
 
 
 def apply_decoder_modification(
