@@ -182,15 +182,10 @@ class TwoWayAttentionBlock(nn.Module):
         return queries, keys
 
 
-class AdapterTwoWayAttentionBlock(TwoWayAttentionBlock):
+class AdapterTwoWayAttentionBlock(nn.Module):
     def __init__(
         self,
-        embedding_dim: int,
-        num_heads: int,
-        mlp_dim: int = 2048,
-        activation: Type[nn.Module] = nn.ReLU,
-        attention_downsample_rate: int = 2,
-        skip_first_layer_pe: bool = False,
+        block: TwoWayAttentionBlock,
         mlp_ratio: float = 4.0,
         scale: float = 0.1,
 
@@ -202,39 +197,41 @@ class AdapterTwoWayAttentionBlock(TwoWayAttentionBlock):
         inputs.
 
         Arguments:
-          embedding_dim (int): the channel dimension of the embeddings
-          num_heads (int): the number of heads in the attention layers
-          mlp_dim (int): the hidden dimension of the mlp block
-          activation (nn.Module): the activation of the mlp block
-          skip_first_layer_pe (bool): skip the PE on the first layer
           mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
           scale (int): mlp residual adapter scaling factor
 
         """
-        super().__init__(embedding_dim, num_heads, mlp_dim, activation, attention_downsample_rate, skip_first_layer_pe)
+        super(AdapterTwoWayAttentionBlock).__init__()
+
+        # lets freeze first
+        for parameter in block.parameters():
+            parameter.requires_grad = False
+
+        embedding_dim = block.embedding_dim
 
         self.mlp_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
         self.down_sample_queries = nn.Linear(embedding_dim, int(embedding_dim * mlp_ratio))
         self.token_to_image_adapter = AdditionAdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
         self.image_to_token_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
         self.scale = scale
+        self.block = block
 
     def forward(
         self, queries: Tensor, keys: Tensor, query_pe: Tensor, key_pe: Tensor
     ) -> Tuple[Tensor, Tensor]:
         # Self attention block
-        if self.skip_first_layer_pe:
-            queries = self.self_attn(q=queries, k=queries, v=queries)
+        if self.block.skip_first_layer_pe:
+            queries = self.block.self_attn(q=queries, k=queries, v=queries)
         else:
             q = queries + query_pe
-            attn_out = self.self_attn(q=q, k=q, v=queries)
+            attn_out = self.block.self_attn(q=q, k=q, v=queries)
             queries = queries + attn_out
-        queries = self.norm1(queries)
+        queries = self.block.norm1(queries)
 
         # Cross attention block, tokens attending to image embedding
         q = queries + query_pe
         k = keys + key_pe
-        attn_out = self.cross_attn_token_to_image(q=q, k=k, v=keys)
+        attn_out = self.block.cross_attn_token_to_image(q=q, k=k, v=keys)
 
         downsampled_queries = self.down_sample_queries(queries)
         queries = queries + attn_out
@@ -243,17 +240,17 @@ class AdapterTwoWayAttentionBlock(TwoWayAttentionBlock):
         queries = queries + keys
 
         # MLP block
-        queries = self.mlp(self.norm2(queries)) + self.scale * self.mlp_adapter(queries)
-        queries = self.norm3(queries)
+        queries = self.block.mlp(self.block.norm2(queries)) + self.scale * self.mlp_adapter(queries)
+        queries = self.block.norm3(queries)
 
         # Cross attention block, image embedding attending to tokens
         q = queries + query_pe
         k = keys + key_pe
-        attn_out = self.cross_attn_image_to_token(q=k, k=q, v=queries)
+        attn_out = self.block.cross_attn_image_to_token(q=k, k=q, v=queries)
         attn_out = attn_out + keys
         attn_out = self.image_to_token_adapter(attn_out)
         keys = keys + attn_out
-        keys = self.norm4(keys)
+        keys = self.block.norm4(keys)
 
         return queries, keys
 
