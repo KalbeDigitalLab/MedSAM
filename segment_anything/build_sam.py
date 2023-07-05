@@ -60,13 +60,14 @@ def apply_encoder_modification(
     enable_lora_attn: bool = False,
     enable_adapter_mlp: bool = False,
     adapter_scale: float = 0.1,
+    adapter_mlp_ratio: float = 4.0,
     lora_rank: int = 4,
     lora_layer: Optional[List] = None,
     ) -> Sam:
     if enable_lora_attn:
         sam_model.image_encoder = LoRAImageEncoderViT(sam_model.image_encoder, lora_rank, lora_layer)
     if enable_adapter_mlp:
-        sam_model.image_encoder = AdapterImageEncoderViT(sam_model.image_encoder, adapter_scale)
+        sam_model.image_encoder = AdapterImageEncoderViT(sam_model.image_encoder, adapter_scale, adapter_mlp_ratio)
     return sam_model
 
 
