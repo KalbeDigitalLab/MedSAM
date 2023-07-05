@@ -201,13 +201,13 @@ class AdapterTwoWayAttentionBlock(nn.Module):
           scale (int): mlp residual adapter scaling factor
 
         """
-        super(AdapterTwoWayAttentionBlock).__init__()
+        super().__init__()
 
         # lets freeze first
         for parameter in block.parameters():
             parameter.requires_grad = False
 
-        embedding_dim = block.embedding_dim
+        embedding_dim = block.mlp.lin1.in_features
 
         self.mlp_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
         self.down_sample_queries = nn.Linear(embedding_dim, int(embedding_dim * mlp_ratio))
@@ -265,12 +265,12 @@ class LoRATwoWayTransformer(nn.Module):
         super(LoRATwoWayTransformer, self).__init__()
 
         assert r > 0
-        base_dim = decoder_mask.layers[0].self_attn.q_proj.in_features
+        base_dim = decoder_mask.transformer.layers[0].self_attn.q_proj.in_features
         dim = base_dim
         if lora_layer:
             self.lora_layer = lora_layer
         else:
-            self.lora_layer = list(range(len(decoder_mask.blocks)))
+            self.lora_layer = list(range(len(decoder_mask.transformer.layers)))
 
         # create for storage, then we can init them or load weights
         self.w_As = []  # These are linear layers
@@ -281,7 +281,7 @@ class LoRATwoWayTransformer(nn.Module):
             param.requires_grad = False
 
         # Here, we do the surgery
-        for t_layer_i, blk in enumerate(decoder_mask.layers):
+        for t_layer_i, blk in enumerate(decoder_mask.transformer.layers):
             # If we only want few lora layer instead of all
             if t_layer_i not in self.lora_layer:
                 continue
@@ -355,9 +355,18 @@ class AdapterTwoWayTransformer(nn.Module):
         for param in decoder_mask.parameters():
             param.requires_grad = False
 
+        adapter_layers = nn.ModuleList()
+
         # Here, we do the surgery
-        for _, blk in enumerate(decoder_mask.layers):
-            blk = AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale)
+        if isinstance(decoder_mask, LoRATwoWayTransformer):
+            for _, blk in enumerate(decoder_mask.decoder_mask.transformer.layers):
+                adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale))
+            decoder_mask.decoder_mask.transformer.layers = adapter_layers
+
+        elif isinstance(decoder_mask, TwoWayTransformer):
+            for _, blk in enumerate(decoder_mask.transformer.layers):
+                adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale))
+            decoder_mask.transformer.layers = adapter_layers
 
         self.decoder_mask = decoder_mask
 
