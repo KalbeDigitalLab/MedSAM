@@ -10,6 +10,8 @@ from .build_sam import (
     build_sam_vit_l,
     build_sam_vit_b,
     sam_model_registry,
+    apply_encoder_modification,
+    apply_decoder_modification,
 )
 from .predictor import SamPredictor
 from .automatic_mask_generator import SamAutomaticMaskGenerator
