@@ -84,9 +84,9 @@ def apply_decoder_modification(
     ) -> Sam:
     new_sam = copy.deepcopy(sam_model)
     if enable_lora_attn:
-        new_sam.mask_decoder = LoRATwoWayTransformer(new_sam.mask_decoder, lora_rank, lora_layer)
+        new_sam.mask_decoder.transformer = LoRATwoWayTransformer(new_sam.mask_decoder.transformer, lora_rank, lora_layer)
     if enable_adapter_mlp:
-        new_sam.mask_decoder = AdapterTwoWayTransformer(new_sam.mask_decoder, adapter_scale, adapter_mlp_ratio)
+        new_sam.mask_decoder.transformer = AdapterTwoWayTransformer(new_sam.mask_decoder.transformer, adapter_scale, adapter_mlp_ratio)
     return new_sam
 
 

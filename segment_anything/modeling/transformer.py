@@ -258,30 +258,30 @@ class AdapterTwoWayAttentionBlock(nn.Module):
 class LoRATwoWayTransformer(nn.Module):
     def __init__(
         self,
-        decoder_mask: TwoWayTransformer,
+        transformer: TwoWayTransformer,
         r: int = 4,
         lora_layer: Optional[List] = None,
     ) -> None:
         super(LoRATwoWayTransformer, self).__init__()
 
         assert r > 0
-        base_dim = decoder_mask.transformer.layers[0].self_attn.q_proj.in_features
+        base_dim = transformer.layers[0].self_attn.q_proj.in_features
         dim = base_dim
         if lora_layer:
             self.lora_layer = lora_layer
         else:
-            self.lora_layer = list(range(len(decoder_mask.transformer.layers)))
+            self.lora_layer = list(range(len(transformer.layers)))
 
         # create for storage, then we can init them or load weights
         self.w_As = []  # These are linear layers
         self.w_Bs = []
 
         # lets freeze first
-        for param in decoder_mask.parameters():
+        for param in transformer.parameters():
             param.requires_grad = False
 
         # Here, we do the surgery
-        for t_layer_i, blk in enumerate(decoder_mask.transformer.layers):
+        for t_layer_i, blk in enumerate(transformer.layers):
             # If we only want few lora layer instead of all
             if t_layer_i not in self.lora_layer:
                 continue
@@ -328,7 +328,7 @@ class LoRATwoWayTransformer(nn.Module):
             blk.cross_attn_image_to_token.v_proj = LoRALayer(w_v_linear, w_a_linear_v, w_b_linear_v)
 
         self.reset_parameters()
-        self.decoder_mask = decoder_mask
+        self.transformer = transformer
 
     def reset_parameters(self) -> None:
         for w_A in self.w_As:
@@ -337,41 +337,39 @@ class LoRATwoWayTransformer(nn.Module):
             nn.init.zeros_(w_B.weight)
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.decoder_mask(x)
+        return self.transformer(x)
 
 
 class AdapterTwoWayTransformer(nn.Module):
     def __init__(
         self,
-        decoder_mask: TwoWayTransformer,
+        transformer: TwoWayTransformer,
         scale: float = 0.1,
         mlp_ratio: float = 4.0,
-
-        lora_layer: Optional[List] = None,
     ) -> None:
         super(AdapterTwoWayTransformer, self).__init__()
 
         # lets freeze first
-        for param in decoder_mask.parameters():
+        for param in transformer.parameters():
             param.requires_grad = False
 
         adapter_layers = nn.ModuleList()
 
         # Here, we do the surgery
-        if isinstance(decoder_mask, LoRATwoWayTransformer):
-            for _, blk in enumerate(decoder_mask.decoder_mask.transformer.layers):
+        if isinstance(transformer, LoRATwoWayTransformer):
+            for _, blk in enumerate(transformer.transformer.layers):
                 adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale))
-            decoder_mask.decoder_mask.transformer.layers = adapter_layers
+            transformer.transformer.layers = adapter_layers
 
-        elif isinstance(decoder_mask, TwoWayTransformer):
-            for _, blk in enumerate(decoder_mask.transformer.layers):
+        elif isinstance(transformer, TwoWayTransformer):
+            for _, blk in enumerate(transformer.layers):
                 adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale))
-            decoder_mask.transformer.layers = adapter_layers
+            transformer.layers = adapter_layers
 
-        self.decoder_mask = decoder_mask
+        self.transformer = transformer
 
     def forward(self, x: Tensor) -> Tensor:
-        return self.decoder_mask(x)
+        return self.transformer(x)
 
 
 class Attention(nn.Module):
