@@ -204,8 +204,12 @@ class AdapterImageEncoderViT(nn.Module):
             param.requires_grad = False
 
         # Here, we do the surgery
-        for _, blk in enumerate(encoder_vit.blocks):
-            blk = AdapterBlock(blk, scale)
+        if isinstance(encoder_vit, ImageEncoderViT):
+            for _, blk in enumerate(encoder_vit.blocks):
+                blk = AdapterBlock(blk, scale, mlp_ratio)
+        elif isinstance(encoder_vit, LoRAImageEncoderViT):
+            for _, blk in enumerate(encoder_vit.encoder_vit.blocks):
+                blk = AdapterBlock(blk, scale, mlp_ratio)
 
         self.encoder_vit = encoder_vit
 
