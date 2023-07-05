@@ -55,8 +55,8 @@ class LoRALayer_qkv_timm(nn.Module):
         qkv = self.qkv(x)  # B,N,3*org_C
         new_q = self.linear_b_q(self.linear_a_q(x))
         new_v = self.linear_b_v(self.linear_a_v(x))
-        qkv[:, :, : self.dim] += new_q
-        qkv[:, :, -self.dim :] += new_v
+        qkv[..., : self.dim] += new_q
+        qkv[..., -self.dim :] += new_v
         return qkv
 
 
