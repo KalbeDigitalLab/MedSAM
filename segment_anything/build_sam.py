@@ -17,6 +17,8 @@ from .modeling import (
     PromptEncoder,
     Sam,
     TwoWayTransformer,
+    LoRATwoWayTransformer,
+    AdapterTwoWayTransformer,
 )
 
 
@@ -52,6 +54,7 @@ def build_sam_vit_b(checkpoint=None):
         checkpoint=checkpoint,
     )
 
+
 def apply_encoder_modification(
     sam_model: Sam,
     enable_lora_attn: bool = False,
@@ -65,6 +68,23 @@ def apply_encoder_modification(
     if enable_adapter_mlp:
         sam_model.image_encoder = AdapterImageEncoderViT(sam_model.image_encoder, adapter_scale)
     return sam_model
+
+
+def apply_decoder_modification(
+    sam_model: Sam,
+    enable_lora_attn: bool = False,
+    enable_adapter_mlp: bool = False,
+    adapter_scale: float = 0.1,
+    adapter_mlp_ratio: float = 4.0,
+    lora_rank: int = 4,
+    lora_layer: Optional[List] = None,
+    ) -> Sam:
+    if enable_lora_attn:
+        sam_model.mask_decoder = LoRATwoWayTransformer(sam_model.mask_decoder, lora_rank, lora_layer)
+    if enable_adapter_mlp:
+        sam_model.mask_decoder = AdapterTwoWayTransformer(sam_model.mask_decoder, adapter_scale, adapter_mlp_ratio)
+    return sam_model
+
 
 sam_model_registry = {
     "default": build_sam_vit_h,
