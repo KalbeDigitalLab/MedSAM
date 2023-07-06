@@ -188,13 +188,13 @@ class AdapterImageEncoderViT(nn.Module):
         self,
         encoder_vit: ImageEncoderViT,
         scale: float = 0.1,
-        mlp_ratio: float = 4.0,
+        mlp_dim: int = 64,
     ) -> None:
         """
         Args:
             encoder_vit (nn.Module): Vision Transformer model
             scale (int): mlp residual adapter scaling factor
-            mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
+            mlp_ratio (int): Size of mlp hidden dim to embedding dim.
         """
 
         super(AdapterImageEncoderViT, self).__init__()
@@ -208,11 +208,11 @@ class AdapterImageEncoderViT(nn.Module):
         # Here, we do the surgery
         if isinstance(encoder_vit, LoRAImageEncoderViT):
             for _, blk in enumerate(encoder_vit.encoder_vit.blocks):
-                adapter_blocks.append(AdapterBlock(blk, scale, mlp_ratio))
+                adapter_blocks.append(AdapterBlock(blk, scale, mlp_dim))
             encoder_vit.encoder_vit.blocks = adapter_blocks
         elif isinstance(encoder_vit, ImageEncoderViT):
             for _, blk in enumerate(encoder_vit.blocks):
-                adapter_blocks.append(AdapterBlock(blk, scale, mlp_ratio))
+                adapter_blocks.append(AdapterBlock(blk, scale, mlp_dim))
             encoder_vit.blocks = adapter_blocks
 
         self.encoder_vit = encoder_vit
@@ -292,13 +292,13 @@ class AdapterBlock(nn.Module):
         self,
         block: Block,
         scale: float = 0.1,
-        mlp_ratio: float = 4.0,
+        mlp_dim: int = 64,
     ) -> None:
         """
         Args:
             block (Block): Original block module.
             scale (int): mlp residual adapter scaling factor
-            mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
+            mlp_ratio (int): Size of mlp hidden dim to embedding dim.
         """
 
         super().__init__()
@@ -308,8 +308,8 @@ class AdapterBlock(nn.Module):
             parameter.requires_grad = False
 
         dim = block.mlp.lin1.in_features
-        self.mlp_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio))
-        self.space_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=int(dim * mlp_ratio))
+        self.mlp_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=mlp_dim)
+        self.space_adapter = AdapterMLPBlock(embedding_dim=dim, mlp_dim=mlp_dim)
         self.scale = scale
         self.block = block
 

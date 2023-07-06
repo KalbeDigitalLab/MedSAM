@@ -186,7 +186,7 @@ class AdapterTwoWayAttentionBlock(nn.Module):
     def __init__(
         self,
         block: TwoWayAttentionBlock,
-        mlp_ratio: float = 4.0,
+        mlp_dim: int = 64,
         scale: float = 0.1,
 
     ) -> None:
@@ -197,7 +197,7 @@ class AdapterTwoWayAttentionBlock(nn.Module):
         inputs.
 
         Arguments:
-          mlp_ratio (float): Ratio of mlp hidden dim to embedding dim.
+          mlp_ratio (int): Size of mlp hidden dim to embedding dim.
           scale (int): mlp residual adapter scaling factor
 
         """
@@ -209,10 +209,10 @@ class AdapterTwoWayAttentionBlock(nn.Module):
 
         embedding_dim = block.mlp.lin1.in_features
 
-        self.mlp_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
-        self.down_sample_queries = nn.Linear(embedding_dim, int(embedding_dim * mlp_ratio))
-        self.token_to_image_adapter = AdditionAdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
-        self.image_to_token_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=int(embedding_dim * mlp_ratio))
+        self.mlp_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
+        self.down_sample_queries = nn.Linear(embedding_dim, mlp_dim=mlp_dim)
+        self.token_to_image_adapter = AdditionAdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
+        self.image_to_token_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
         self.scale = scale
         self.block = block
 
@@ -345,7 +345,7 @@ class AdapterTwoWayTransformer(nn.Module):
         self,
         transformer: TwoWayTransformer,
         scale: float = 0.1,
-        mlp_ratio: float = 4.0,
+        mlp_dim: int = 64,
     ) -> None:
         super(AdapterTwoWayTransformer, self).__init__()
 
@@ -358,12 +358,12 @@ class AdapterTwoWayTransformer(nn.Module):
         # Here, we do the surgery
         if isinstance(transformer, LoRATwoWayTransformer):
             for _, blk in enumerate(transformer.transformer.layers):
-                adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale))
+                adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_dim, scale))
             transformer.transformer.layers = adapter_layers
 
         elif isinstance(transformer, TwoWayTransformer):
             for _, blk in enumerate(transformer.layers):
-                adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_ratio, scale))
+                adapter_layers.append(AdapterTwoWayAttentionBlock(blk, mlp_dim, scale))
             transformer.layers = adapter_layers
 
         self.transformer = transformer
