@@ -210,7 +210,7 @@ class AdapterTwoWayAttentionBlock(nn.Module):
         embedding_dim = block.mlp.lin1.in_features
 
         self.mlp_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
-        self.down_sample_queries = nn.Linear(embedding_dim, mlp_dim=mlp_dim)
+        self.down_sample_queries = nn.Linear(embedding_dim, mlp_dim)
         self.token_to_image_adapter = AdditionAdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
         self.image_to_token_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
         self.scale = scale
@@ -234,10 +234,10 @@ class AdapterTwoWayAttentionBlock(nn.Module):
         attn_out = self.block.cross_attn_token_to_image(q=q, k=k, v=keys)
 
         downsampled_queries = self.down_sample_queries(queries)
-        queries = queries + attn_out
+        attn_out = queries + attn_out
 
-        queries = self.token_to_image_adapter(queries, downsampled_queries)
-        queries = queries + keys
+        adapter_out = self.token_to_image_adapter(attn_out, downsampled_queries)
+        queries = queries + adapter_out
 
         # MLP block
         queries = self.block.mlp(self.block.norm2(queries)) + self.scale * self.mlp_adapter(queries)
@@ -265,8 +265,6 @@ class LoRATwoWayTransformer(nn.Module):
         super(LoRATwoWayTransformer, self).__init__()
 
         assert r > 0
-        base_dim = transformer.layers[0].self_attn.q_proj.in_features
-        dim = base_dim
         if lora_layer:
             self.lora_layer = lora_layer
         else:
@@ -286,46 +284,49 @@ class LoRATwoWayTransformer(nn.Module):
             if t_layer_i not in self.lora_layer:
                 continue
             # self attn
-            w_q_linear = blk.self_attn.q_proj
-            w_v_linear = blk.self_attn.v_proj
-            w_a_linear_q = nn.Linear(dim, r, bias=False)
-            w_b_linear_q = nn.Linear(r, dim, bias=False)
-            w_a_linear_v = nn.Linear(dim, r, bias=False)
-            w_b_linear_v = nn.Linear(r, dim, bias=False)
-            self.w_As.append(w_a_linear_q)
-            self.w_Bs.append(w_b_linear_q)
-            self.w_As.append(w_a_linear_v)
-            self.w_Bs.append(w_b_linear_v)
-            blk.self_attn.q_proj = LoRALayer(w_q_linear, w_a_linear_q, w_b_linear_q)
-            blk.self_attn.v_proj = LoRALayer(w_v_linear, w_a_linear_v, w_b_linear_v)
+            attn_w_q_linear = blk.self_attn.q_proj
+            attn_w_v_linear = blk.self_attn.v_proj
+            base_dim = attn_w_q_linear.in_features
+            attn_w_a_linear_q = nn.Linear(base_dim, r, bias=False)
+            attn_w_b_linear_q = nn.Linear(r, base_dim, bias=False)
+            attn_w_a_linear_v = nn.Linear(base_dim, r, bias=False)
+            attn_w_b_linear_v = nn.Linear(r, base_dim, bias=False)
+            self.w_As.append(attn_w_a_linear_q)
+            self.w_Bs.append(attn_w_b_linear_q)
+            self.w_As.append(attn_w_a_linear_v)
+            self.w_Bs.append(attn_w_b_linear_v)
+            blk.self_attn.q_proj = LoRALayer(attn_w_q_linear, attn_w_a_linear_q, attn_w_b_linear_q)
+            blk.self_attn.v_proj = LoRALayer(attn_w_v_linear, attn_w_a_linear_v, attn_w_b_linear_v)
 
             # token to image
-            w_q_linear = blk.cross_attn_token_to_image.q_proj
-            w_v_linear = blk.cross_attn_token_to_image.v_proj
-            w_a_linear_q = nn.Linear(dim, r, bias=False)
-            w_b_linear_q = nn.Linear(r, dim, bias=False)
-            w_a_linear_v = nn.Linear(dim, r, bias=False)
-            w_b_linear_v = nn.Linear(r, dim, bias=False)
-            self.w_As.append(w_a_linear_q)
-            self.w_Bs.append(w_b_linear_q)
-            self.w_As.append(w_a_linear_v)
-            self.w_Bs.append(w_b_linear_v)
-            blk.cross_attn_token_to_image.q_proj = LoRALayer(w_q_linear, w_a_linear_q, w_b_linear_q)
-            blk.cross_attn_token_to_image.v_proj = LoRALayer(w_v_linear, w_a_linear_v, w_b_linear_v)
+            token_w_q_linear = blk.cross_attn_token_to_image.q_proj
+            token_w_v_linear = blk.cross_attn_token_to_image.v_proj
+            base_dim = token_w_q_linear.in_features
+            token_w_a_linear_q = nn.Linear(base_dim, r, bias=False)
+            token_w_b_linear_q = nn.Linear(r, token_w_q_linear.out_features, bias=False)
+            token_w_a_linear_v = nn.Linear(base_dim, r, bias=False)
+            token_w_b_linear_v = nn.Linear(r, token_w_v_linear.out_features, bias=False)
+            self.w_As.append(token_w_a_linear_q)
+            self.w_Bs.append(token_w_b_linear_q)
+            self.w_As.append(token_w_a_linear_v)
+            self.w_Bs.append(token_w_b_linear_v)
+            blk.cross_attn_token_to_image.q_proj = LoRALayer(token_w_q_linear, token_w_a_linear_q, token_w_b_linear_q)
+            blk.cross_attn_token_to_image.v_proj = LoRALayer(token_w_v_linear, token_w_a_linear_v, token_w_b_linear_v)
 
             # image to token
-            w_q_linear = blk.cross_attn_image_to_token.q_proj
-            w_v_linear = blk.cross_attn_image_to_token.v_proj
-            w_a_linear_q = nn.Linear(dim, r, bias=False)
-            w_b_linear_q = nn.Linear(r, dim, bias=False)
-            w_a_linear_v = nn.Linear(dim, r, bias=False)
-            w_b_linear_v = nn.Linear(r, dim, bias=False)
-            self.w_As.append(w_a_linear_q)
-            self.w_Bs.append(w_b_linear_q)
-            self.w_As.append(w_a_linear_v)
-            self.w_Bs.append(w_b_linear_v)
-            blk.cross_attn_image_to_token.q_proj = LoRALayer(w_q_linear, w_a_linear_q, w_b_linear_q)
-            blk.cross_attn_image_to_token.v_proj = LoRALayer(w_v_linear, w_a_linear_v, w_b_linear_v)
+            img_w_q_linear = blk.cross_attn_image_to_token.q_proj
+            img_w_v_linear = blk.cross_attn_image_to_token.v_proj
+            base_dim = img_w_q_linear.in_features
+            img_w_a_linear_q = nn.Linear(base_dim, r, bias=False)
+            img_w_b_linear_q = nn.Linear(r, img_w_q_linear.out_features, bias=False)
+            img_w_a_linear_v = nn.Linear(base_dim, r, bias=False)
+            img_w_b_linear_v = nn.Linear(r, img_w_v_linear.out_features, bias=False)
+            self.w_As.append(img_w_a_linear_q)
+            self.w_Bs.append(img_w_b_linear_q)
+            self.w_As.append(img_w_a_linear_v)
+            self.w_Bs.append(img_w_b_linear_v)
+            blk.cross_attn_image_to_token.q_proj = LoRALayer(img_w_q_linear, img_w_a_linear_q, img_w_b_linear_q)
+            blk.cross_attn_image_to_token.v_proj = LoRALayer(img_w_v_linear, img_w_a_linear_v, img_w_b_linear_v)
 
         self.reset_parameters()
         self.transformer = transformer
@@ -336,8 +337,13 @@ class LoRATwoWayTransformer(nn.Module):
         for w_B in self.w_Bs:
             nn.init.zeros_(w_B.weight)
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.transformer(x)
+    def forward(
+        self,
+        image_embedding: Tensor,
+        image_pe: Tensor,
+        point_embedding: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        return self.transformer(image_embedding, image_pe, point_embedding)
 
 
 class AdapterTwoWayTransformer(nn.Module):
@@ -368,8 +374,13 @@ class AdapterTwoWayTransformer(nn.Module):
 
         self.transformer = transformer
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.transformer(x)
+    def forward(
+        self,
+        image_embedding: Tensor,
+        image_pe: Tensor,
+        point_embedding: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        return self.transformer(image_embedding, image_pe, point_embedding)
 
 
 class Attention(nn.Module):
