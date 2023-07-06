@@ -61,7 +61,7 @@ def apply_encoder_modification(
     enable_lora_attn: bool = False,
     enable_adapter_mlp: bool = False,
     adapter_scale: float = 0.1,
-    adapter_mlp_ratio: float = 4.0,
+    adapter_mlp_dim: int = 64,
     lora_rank: int = 4,
     lora_layer: Optional[List] = None,
     ) -> Sam:
@@ -69,7 +69,7 @@ def apply_encoder_modification(
     if enable_lora_attn:
         new_sam.image_encoder = LoRAImageEncoderViT(new_sam.image_encoder, lora_rank, lora_layer)
     if enable_adapter_mlp:
-        new_sam.image_encoder = AdapterImageEncoderViT(new_sam.image_encoder, adapter_scale, adapter_mlp_ratio)
+        new_sam.image_encoder = AdapterImageEncoderViT(new_sam.image_encoder, adapter_scale, adapter_mlp_dim)
     return new_sam
 
 
@@ -78,7 +78,7 @@ def apply_decoder_modification(
     enable_lora_attn: bool = False,
     enable_adapter_mlp: bool = False,
     adapter_scale: float = 0.1,
-    adapter_mlp_ratio: float = 4.0,
+    adapter_mlp_dim: int = 64,
     lora_rank: int = 4,
     lora_layer: Optional[List] = None,
     ) -> Sam:
@@ -86,7 +86,7 @@ def apply_decoder_modification(
     if enable_lora_attn:
         new_sam.mask_decoder.transformer = LoRATwoWayTransformer(new_sam.mask_decoder.transformer, lora_rank, lora_layer)
     if enable_adapter_mlp:
-        new_sam.mask_decoder.transformer = AdapterTwoWayTransformer(new_sam.mask_decoder.transformer, adapter_scale, adapter_mlp_ratio)
+        new_sam.mask_decoder.transformer = AdapterTwoWayTransformer(new_sam.mask_decoder.transformer, adapter_scale, adapter_mlp_dim)
     return new_sam
 
 
