@@ -65,12 +65,42 @@ def apply_encoder_modification(
     lora_rank: int = 4,
     lora_layer: Optional[List] = None,
     ) -> Sam:
-    new_sam = copy.deepcopy(sam_model)
+    """Apply Encoder Modification.
+
+    Available modifications:
+    1. Adapter from MedSAM-Adapter: arxiv.org/abs/2304.12620
+    2. LoRA from Low Rank Adaptation: arxiv.org/abs/2106.09685
+
+    Adapter method will add serial/parallel layers w.r.t attention modules or mlp blocks.
+    Lora method will modify attention modules.
+
+    Parameters
+    ----------
+    sam_model : Sam
+        SAM Model
+    enable_lora_attn : bool, optional
+        Enable LoRA on Attention Modules, by default False
+    enable_adapter_mlp : bool, optional
+        Enable Adapter on MLP Modules, by default False
+    adapter_scale : float, optional
+        Value to scale Adapter MLP output, by default 0.1
+    adapter_mlp_dim : int, optional
+        Size of mlp hidden dim to embedding dim in Adapter block, by default 64
+    lora_rank : int, optional
+        LoRA rank, by default 4
+    lora_layer : Optional[List], optional
+        Apply LoRA to selected layers, by default None
+
+    Returns
+    -------
+    Sam
+        Modified sam encoder model.
+    """
     if enable_lora_attn:
-        new_sam.image_encoder = LoRAImageEncoderViT(new_sam.image_encoder, lora_rank, lora_layer)
+        sam_model.image_encoder = LoRAImageEncoderViT(sam_model.image_encoder, lora_rank, lora_layer)
     if enable_adapter_mlp:
-        new_sam.image_encoder = AdapterImageEncoderViT(new_sam.image_encoder, adapter_scale, adapter_mlp_dim)
-    return new_sam
+        sam_model.image_encoder = AdapterImageEncoderViT(sam_model.image_encoder, adapter_scale, adapter_mlp_dim)
+    return sam_model
 
 
 def apply_decoder_modification(
@@ -82,12 +112,42 @@ def apply_decoder_modification(
     lora_rank: int = 4,
     lora_layer: Optional[List] = None,
     ) -> Sam:
-    new_sam = copy.deepcopy(sam_model)
+    """Apply Decoder Modification.
+
+    Available modifications:
+    1. Adapter from MedSAM-Adapter: arxiv.org/abs/2304.12620
+    2. LoRA from Low Rank Adaptation: arxiv.org/abs/2106.09685
+
+    Adapter method will add serial/parallel layers w.r.t attention modules or mlp blocks.
+    Lora method will modify attention modules.
+
+    Parameters
+    ----------
+    sam_model : Sam
+        SAM Model
+    enable_lora_attn : bool, optional
+        Enable LoRA on Attention Modules, by default False
+    enable_adapter_mlp : bool, optional
+        Enable Adapter on MLP Modules, by default False
+    adapter_scale : float, optional
+        Value to scale Adapter MLP output, by default 0.1
+    adapter_mlp_dim : int, optional
+        Size of mlp hidden dim to embedding dim in Adapter block, by default 64
+    lora_rank : int, optional
+        LoRA rank, by default 4
+    lora_layer : Optional[List], optional
+        Apply LoRA to selected layers, by default None
+
+    Returns
+    -------
+    Sam
+        Modified sam decoder model.
+    """
     if enable_lora_attn:
-        new_sam.mask_decoder.transformer = LoRATwoWayTransformer(new_sam.mask_decoder.transformer, lora_rank, lora_layer)
+        sam_model.mask_decoder.transformer = LoRATwoWayTransformer(sam_model.mask_decoder.transformer, lora_rank, lora_layer)
     if enable_adapter_mlp:
-        new_sam.mask_decoder.transformer = AdapterTwoWayTransformer(new_sam.mask_decoder.transformer, adapter_scale, adapter_mlp_dim)
-    return new_sam
+        sam_model.mask_decoder.transformer = AdapterTwoWayTransformer(sam_model.mask_decoder.transformer, adapter_scale, adapter_mlp_dim)
+    return sam_model
 
 
 sam_model_registry = {

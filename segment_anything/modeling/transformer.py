@@ -190,16 +190,18 @@ class AdapterTwoWayAttentionBlock(nn.Module):
         scale: float = 0.1,
 
     ) -> None:
-        """
-        A transformer block with four layers: (1) self-attention of sparse
-        inputs, (2) cross attention of sparse inputs to dense inputs, (3) mlp
-        block on sparse inputs, and (4) cross attention of dense inputs to sparse
-        inputs.
+        """Adapter Based TwoWayAttentionBlock.
 
-        Arguments:
-          mlp_ratio (int): Size of mlp hidden dim to embedding dim.
-          scale (int): mlp residual adapter scaling factor
+        Source: arxiv.org/abs/2304.12620
 
+        Parameters
+        ----------
+        block : TwoWayAttentionBlock
+            original block.
+        scale : float, optional
+            mlp residual adapter scaling factor, by default 0.1
+        mlp_dim : int, optional
+            Size of mlp hidden dim to embedding dim., by default 64
         """
         super().__init__()
 
@@ -262,6 +264,22 @@ class LoRATwoWayTransformer(nn.Module):
         r: int = 4,
         lora_layer: Optional[List] = None,
     ) -> None:
+        """LoRA Based TwoWayTransformer.
+
+        Source: arxiv.org/abs/2106.09685
+
+        This module only applies to self_attn and cross attn
+        inside two-layer decoder updates.
+
+        Parameters
+        ----------
+        block : TwoWayAttentionBlock
+            original block.
+        r : int, optional
+            LoRA rank, by default 4
+        lora_layer : Optional[List], optional
+            Apply LoRA to selected layers, by default None
+        """
         super(LoRATwoWayTransformer, self).__init__()
 
         assert r > 0
@@ -353,6 +371,22 @@ class AdapterTwoWayTransformer(nn.Module):
         scale: float = 0.1,
         mlp_dim: int = 64,
     ) -> None:
+        """Adapter Based TwoWayTransformer.
+
+        Source: arxiv.org/abs/2304.12620
+
+        This module only applies to self_attn and cross attn
+        inside two-layer decoder updates.
+
+        Parameters
+        ----------
+        block : TwoWayAttentionBlock
+            original block.
+        scale : float, optional
+            mlp residual adapter scaling factor, by default 0.1
+        mlp_dim : int, optional
+            Size of mlp hidden dim to embedding dim., by default 64
+        """
         super(AdapterTwoWayTransformer, self).__init__()
 
         # lets freeze first

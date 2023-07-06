@@ -125,13 +125,21 @@ class LoRAImageEncoderViT(nn.Module):
         r: int = 4,
         lora_layer: Optional[List] = None,
     ) -> None:
-        """
-        Args:
-            encoder_vit (nn.Module): Vision Transformer model
-            r (int): rank of LoRA
-            lora_layer (list): which layer we apply LoRA.
-        """
+        """LoRA Based ViT Image Encoder.
 
+        Source:
+        - arxiv.org/abs/2106.09685
+        - https://github.com/JamesQFreeman/LoRA-ViT/blob/main/lora.py
+
+        Parameters
+        ----------
+        encoder_vit : nn.Module
+            Vision Transformer model.
+        r : int, optional
+            LoRA rank, by default 4
+        lora_layer : Optional[List], optional
+            Apply LoRA to selected layers, by default None
+        """
         super(LoRAImageEncoderViT, self).__init__()
 
         assert r > 0
@@ -190,13 +198,19 @@ class AdapterImageEncoderViT(nn.Module):
         scale: float = 0.1,
         mlp_dim: int = 64,
     ) -> None:
-        """
-        Args:
-            encoder_vit (nn.Module): Vision Transformer model
-            scale (int): mlp residual adapter scaling factor
-            mlp_ratio (int): Size of mlp hidden dim to embedding dim.
-        """
+        """Adapter Based ViT Image Encoder.
 
+        Source: arxiv.org/abs/2304.12620
+
+        Parameters
+        ----------
+        encoder_vit : nn.Module
+            Vision Transformer model.
+        scale : float, optional
+            mlp residual adapter scaling factor, by default 0.1
+        mlp_dim : int, optional
+            Size of mlp hidden dim to embedding dim., by default 64
+        """
         super(AdapterImageEncoderViT, self).__init__()
 
         # lets freeze first
@@ -294,13 +308,19 @@ class AdapterBlock(nn.Module):
         scale: float = 0.1,
         mlp_dim: int = 64,
     ) -> None:
-        """
-        Args:
-            block (Block): Original block module.
-            scale (int): mlp residual adapter scaling factor
-            mlp_ratio (int): Size of mlp hidden dim to embedding dim.
-        """
+        """Adapter Block Variant.
 
+        Source: arxiv.org/abs/2304.12620
+
+        Parameters
+        ----------
+        block : Block
+            Original block module.
+        scale : float, optional
+            mlp residual adapter scaling factor, by default 0.1
+        mlp_dim : int, optional
+            Size of mlp hidden dim to embedding dim., by default 64
+        """
         super().__init__()
 
         # lets freeze first
