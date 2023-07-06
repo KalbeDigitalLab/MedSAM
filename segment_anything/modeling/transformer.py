@@ -337,8 +337,13 @@ class LoRATwoWayTransformer(nn.Module):
         for w_B in self.w_Bs:
             nn.init.zeros_(w_B.weight)
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.transformer(x)
+    def forward(
+        self,
+        image_embedding: Tensor,
+        image_pe: Tensor,
+        point_embedding: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        return self.transformer(image_embedding, image_pe, point_embedding)
 
 
 class AdapterTwoWayTransformer(nn.Module):
@@ -369,8 +374,13 @@ class AdapterTwoWayTransformer(nn.Module):
 
         self.transformer = transformer
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self.transformer(x)
+    def forward(
+        self,
+        image_embedding: Tensor,
+        image_pe: Tensor,
+        point_embedding: Tensor,
+    ) -> Tuple[Tensor, Tensor]:
+        return self.transformer(image_embedding, image_pe, point_embedding)
 
 
 class Attention(nn.Module):
