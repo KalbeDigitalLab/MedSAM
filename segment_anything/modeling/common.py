@@ -67,6 +67,19 @@ class MLPBlock(nn.Module):
         mlp_dim: int,
         act: Type[nn.Module] = nn.GELU,
     ) -> None:
+        """Multi Layer Perceptron Block.
+
+        Multi layer perceptron block with bottleneck design and GELu activation.
+
+        Parameters
+        ----------
+        embedding_dim : int
+            The channel dimension of the embeddings.
+        mlp_dim : int
+            The hidden dimension of the mlp block
+        act : Type[nn.Module], optional
+            The activation of the mlp block, by default nn.GELU
+        """
         super().__init__()
         self.lin1 = nn.Linear(embedding_dim, mlp_dim)
         self.lin2 = nn.Linear(mlp_dim, embedding_dim)
@@ -78,6 +91,20 @@ class MLPBlock(nn.Module):
 
 class AdapterMLPBlock(MLPBlock):
     def __init__(self, embedding_dim: int, mlp_dim: int, act: type = nn.ReLU) -> None:
+        """Adapter version of MLP Block.
+
+        Multi Layer Perceptron block with residual connection.
+
+        Parameters
+        ----------
+        embedding_dim : int
+            The channel dimension of the embeddings.
+        mlp_dim : int
+            The hidden dimension of the mlp block
+        act : Type[nn.Module], optional
+            The activation of the mlp block, by default nn.GELU
+        """
+
         super().__init__(embedding_dim, mlp_dim, act)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -85,7 +112,10 @@ class AdapterMLPBlock(MLPBlock):
 
 
 class AdditionAdapterMLPBlock(AdapterMLPBlock):
+    """Adapter version of MLP Block with Additional Input."""
+
     def forward(self, x_1: torch.Tensor, x_2: torch.Tensor) -> torch.Tensor:
+        """Add additional input before activation."""
         return self.lin2(self.act(self.lin1(x_1) + x_2)) + x_1
 
 
