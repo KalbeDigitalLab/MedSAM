@@ -210,7 +210,7 @@ class AdapterTwoWayAttentionBlock(nn.Module):
         embedding_dim = block.mlp.lin1.in_features
 
         self.mlp_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
-        self.down_sample_queries = nn.Linear(embedding_dim, mlp_dim=mlp_dim)
+        self.down_sample_queries = nn.Linear(embedding_dim, mlp_dim)
         self.token_to_image_adapter = AdditionAdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
         self.image_to_token_adapter = AdapterMLPBlock(embedding_dim=embedding_dim, mlp_dim=mlp_dim)
         self.scale = scale
@@ -234,10 +234,10 @@ class AdapterTwoWayAttentionBlock(nn.Module):
         attn_out = self.block.cross_attn_token_to_image(q=q, k=k, v=keys)
 
         downsampled_queries = self.down_sample_queries(queries)
-        queries = queries + attn_out
+        attn_out = queries + attn_out
 
-        queries = self.token_to_image_adapter(queries, downsampled_queries)
-        queries = queries + keys
+        adapter_out = self.token_to_image_adapter(attn_out, downsampled_queries)
+        queries = queries + adapter_out
 
         # MLP block
         queries = self.block.mlp(self.block.norm2(queries)) + self.scale * self.mlp_adapter(queries)
