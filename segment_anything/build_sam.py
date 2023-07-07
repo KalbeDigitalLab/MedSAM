@@ -96,9 +96,9 @@ def apply_encoder_modification(
     Sam
         Modified sam encoder model.
     """
-    if enable_lora_attn:
+    if enable_lora_attn and not isinstance(sam_model.image_encoder, LoRAImageEncoderViT):
         sam_model.image_encoder = LoRAImageEncoderViT(sam_model.image_encoder, lora_rank, lora_layer)
-    if enable_adapter_mlp:
+    if enable_adapter_mlp and not isinstance(sam_model.image_encoder, AdapterImageEncoderViT):
         sam_model.image_encoder = AdapterImageEncoderViT(sam_model.image_encoder, adapter_scale, adapter_mlp_dim)
     return sam_model
 
@@ -143,9 +143,9 @@ def apply_decoder_modification(
     Sam
         Modified sam decoder model.
     """
-    if enable_lora_attn:
+    if enable_lora_attn and not isinstance(sam_model.mask_decoder.transformer, LoRATwoWayTransformer):
         sam_model.mask_decoder.transformer = LoRATwoWayTransformer(sam_model.mask_decoder.transformer, lora_rank, lora_layer)
-    if enable_adapter_mlp:
+    if enable_adapter_mlp and not isinstance(sam_model.mask_decoder.transformer, AdapterTwoWayTransformer):
         sam_model.mask_decoder.transformer = AdapterTwoWayTransformer(sam_model.mask_decoder.transformer, adapter_scale, adapter_mlp_dim)
     return sam_model
 
