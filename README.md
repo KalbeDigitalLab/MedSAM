@@ -1,8 +1,8 @@
-# MedSAM 
+# MedSAM
 This is the official repository for MedSAM: Segment Anything in Medical Images.
 
 
-## Installation 
+## Installation
 1. Create a virtual environment `conda create -n medsam python=3.10 -y` and activate it `conda activate medsam`
 2. Install [Pytorch 2.0](https://pytorch.org/get-started/locally/)
 3. `git clone https://github.com/bowang-lab/MedSAM`
@@ -35,7 +35,7 @@ You can also run it locally with `MedSAM_Inference.ipynb`.
 
 3. GUI
 
-Install `PyQt5`: `pip install PyQt5 `
+Install `PyQt5` with [pip](https://pypi.org/project/PyQt5/): `pip install PyQt5 ` or [conda](https://anaconda.org/anaconda/pyqt): `conda install -c anaconda pyqt`
 
 ```bash
 python gui.py
@@ -43,7 +43,11 @@ python gui.py
 
 Load the image to the GUI and specify segmentation targets by drawing bounding boxes.
 
-![seg_demo](assets/seg_demo.gif) 
+![seg_demo](assets/seg_demo.gif)
+
+
+https://github.com/bowang-lab/MedSAM/assets/19947331/42db8cae-6ad1-41d3-8db7-013ccf8b28b1
+
 
 
 ## Model Training
@@ -77,9 +81,9 @@ The model was trained on five A100 nodes and each node has four GPUs (80G) (20 A
 
 ```bash
 sbatch train_multi_gpus.sh
-``` 
+```
 
-When the training process is done, please convert the checkpoint to SAM's format for convenient inference. 
+When the training process is done, please convert the checkpoint to SAM's format for convenient inference.
 
 ```bash
 python utils/ckpt_convert.py # Please set the corresponding checkpoint path first
@@ -91,11 +95,11 @@ python utils/ckpt_convert.py # Please set the corresponding checkpoint path firs
 python train_one_gpu.py
 ```
 
-If you only want to train the mask decoder, please check the tutorial on the [0.1 branch](https://github.com/bowang-lab/MedSAM/tree/0.1). 
+If you only want to train the mask decoder, please check the tutorial on the [0.1 branch](https://github.com/bowang-lab/MedSAM/tree/0.1).
 
 
 ## Acknowledgements
-- We highly appreciate all the challenge organizers and dataset owners for providing the public dataset to the community. 
+- We highly appreciate all the challenge organizers and dataset owners for providing the public dataset to the community.
 - We thank Meta AI for making the source code of [segment anything](https://github.com/facebookresearch/segment-anything) publicly available.
 - We also thank Alexandre Bonnet for sharing this great [blog](https://encord.com/blog/learn-how-to-fine-tune-the-segment-anything-model-sam/)
 

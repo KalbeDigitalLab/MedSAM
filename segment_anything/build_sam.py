@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # All rights reserved.
 
@@ -209,7 +210,7 @@ def _build_sam(
     checkpoint = Path(checkpoint)
     if checkpoint.name == "sam_vit_b_01ec64.pth" and not checkpoint.exists():
         cmd = input("Download sam_vit_b_01ec64.pth from facebook AI? [y]/n: ")
-        if len(cmd) == 0 or cmd.lower() == 'y':
+        if len(cmd) == 0 or cmd.lower() == "y":
             checkpoint.parent.mkdir(parents=True, exist_ok=True)
             print("Downloading SAM ViT-B checkpoint...")
             urllib.request.urlretrieve(
@@ -219,7 +220,7 @@ def _build_sam(
             print(checkpoint.name, " is downloaded!")
     elif checkpoint.name == "sam_vit_h_4b8939.pth" and not checkpoint.exists():
         cmd = input("Download sam_vit_h_4b8939.pth from facebook AI? [y]/n: ")
-        if len(cmd) == 0 or cmd.lower() == 'y':
+        if len(cmd) == 0 or cmd.lower() == "y":
             checkpoint.parent.mkdir(parents=True, exist_ok=True)
             print("Downloading SAM ViT-H checkpoint...")
             urllib.request.urlretrieve(
@@ -229,7 +230,7 @@ def _build_sam(
             print(checkpoint.name, " is downloaded!")
     elif checkpoint.name == "sam_vit_l_0b3195.pth" and not checkpoint.exists():
         cmd = input("Download sam_vit_l_0b3195.pth from facebook AI? [y]/n: ")
-        if len(cmd) == 0 or cmd.lower() == 'y':
+        if len(cmd) == 0 or cmd.lower() == "y":
             checkpoint.parent.mkdir(parents=True, exist_ok=True)
             print("Downloading SAM ViT-L checkpoint...")
             urllib.request.urlretrieve(
